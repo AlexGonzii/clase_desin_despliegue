@@ -4,6 +4,9 @@ on:
   push:
     branches: ["main"]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -25,23 +28,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pyinstaller
-          
+
           if (Test-Path "requirements.txt") {
             pip install -r requirements.txt
           }
 
-          # Asegurar PySide6 (por si no está en requirements)
           pip install pyside6
-
-      - name: 🔍 Verify files
-        run: |
-          Write-Host "Contenido del repo:"
-          Get-ChildItem -Recurse
-
-          if (!(Test-Path "main.py")) {
-            Write-Error "❌ No se encontró main.py en la raíz"
-            exit 1
-          }
 
       - name: ⚙️ Build EXE
         run: |
@@ -50,19 +42,23 @@ jobs:
             --onefile `
             --windowed `
             --clean `
+            --name app `
             main.py
 
-      - name: 📁 Check build output
+      - name: 🔍 Debug dist
         run: |
-          if (!(Test-Path "dist")) {
-            Write-Error "❌ No se generó la carpeta dist"
-            exit 1
-          }
+          Get-ChildItem dist -Recurse
 
-          Get-ChildItem dist
+      - name: 🏷️ Generate version
+        id: version
+        run: |
+          echo "VERSION=v1.0.${{ github.run_number }}" >> $env:GITHUB_OUTPUT
 
-      - name: 📤 Upload EXE
-        uses: actions/upload-artifact@v4
+      - name: 🚀 Create Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: app-exe
-          path: dist/*.exe
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: Release ${{ steps.version.outputs.VERSION }}
+          files: dist/app.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

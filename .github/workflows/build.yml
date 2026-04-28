@@ -2,34 +2,66 @@ name: Build EXE (PySide6)
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build:
     runs-on: windows-latest
 
+    defaults:
+      run:
+        shell: powershell
+
     steps:
-      - name: 📥 Clonar repositorio
+      - name: 📥 Checkout
         uses: actions/checkout@v4
 
-      - name: 🐍 Configurar Python
+      - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: 📦 Instalar dependencias
+      - name: 📦 Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pyinstaller
-          if exist requirements.txt pip install -r requirements.txt
+          
+          if (Test-Path "requirements.txt") {
+            pip install -r requirements.txt
+          }
 
-      - name: ⚙️ Generar ejecutable
+          # Asegurar PySide6 (por si no está en requirements)
+          pip install pyside6
+
+      - name: 🔍 Verify files
         run: |
-          pyinstaller --noconfirm --onefile --windowed main.py
+          Write-Host "Contenido del repo:"
+          Get-ChildItem -Recurse
 
-      - name: 📁 Subir artefacto (.exe)
+          if (!(Test-Path "main.py")) {
+            Write-Error "❌ No se encontró main.py en la raíz"
+            exit 1
+          }
+
+      - name: ⚙️ Build EXE
+        run: |
+          pyinstaller `
+            --noconfirm `
+            --onefile `
+            --windowed `
+            --clean `
+            main.py
+
+      - name: 📁 Check build output
+        run: |
+          if (!(Test-Path "dist")) {
+            Write-Error "❌ No se generó la carpeta dist"
+            exit 1
+          }
+
+          Get-ChildItem dist
+
+      - name: 📤 Upload EXE
         uses: actions/upload-artifact@v4
         with:
           name: app-exe
